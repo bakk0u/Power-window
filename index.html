@@ -47,7 +47,7 @@
 <section class="result" aria-live="polite"><p class="eyebrow">LOWEST AVAILABLE WINDOW</p><h2 id="best">Loading prices…</h2><div id="detail"></div><div id="metrics"></div><p id="comparison" hidden></p></section></div>
 <section class="chart" aria-labelledby="chart-heading">
 <div class="chart-title"><div><p class="eyebrow">DE–LU · WHOLESALE</p><h2 id="chart-heading">Market price by quarter hour</h2></div><span class="chart-key">Recommended run</span></div>
-<p class="chart-instruction">Hover to inspect a price. Click or tap a bar to compare starting there.</p>
+<p class="chart-instruction">Hover or use the arrow keys to inspect prices. Select a bar to compare that start time.</p>
 <div class="chart-surface"><div class="unit">ct/kWh</div><div class="plot-layout"><div id="price-axis" aria-hidden="true"></div><div id="plot-scroll"><div id="plot-inner"><div id="plot" role="group" aria-label="Quarter-hour prices"></div><div id="time-axis" aria-hidden="true"></div></div></div></div>
 <div id="price-tip" hidden></div></div>
 <div id="pinned" hidden><div><small>PINNED START</small><strong id="pin-time"></strong><span id="pin-result" aria-live="polite"></span></div><button id="clear-pin" type="button">Clear</button></div>
@@ -132,8 +132,10 @@ function createChart({clock, fullClock, euros}) {
     else {
       const scale = minutes / 60 / 1000 * power;
       const difference = (choice.average - choices[0].average) * scale;
-      result = safeMoney(choice.average * scale) + ' wholesale · ' +
-        (choice.average === choices[0].average ? 'Lowest-cost run' : safeMoney(difference) + ' more than the recommended run');
+      const comparison = choice.average === choices[0].average ? 'Lowest-cost run' :
+        difference < 0.005 ? 'Less than €0.01 more than the recommended run' :
+        safeMoney(difference) + ' more than the recommended run';
+      result = safeMoney(choice.average * scale) + ' wholesale · ' + comparison;
     }
     el('pin-result').textContent = result;
   }
@@ -222,7 +224,8 @@ function createChart({clock, fullClock, euros}) {
       const offset=Math.round(i*slots/4);
       const label=document.createElement('span');
       label.style.left=100*offset/slots+'%';
-      label.textContent=clock.format((from+offset*quarter)*1000);
+      const timeLabel = clock.format((from + offset * quarter) * 1000);
+      label.textContent = i === 4 && timeLabel === '00:00' ? '24:00' : timeLabel;
       el('time-axis').append(label);
     }
     compare(pinned);
@@ -266,8 +269,10 @@ function render(){
       const saving = (first.average-best.average)/1000*(mins/60)*kw;
       const comparison = el('comparison');
       if (Number.isFinite(saving)) {
+        const earliest = fullClock.format(first.start * 1000);
         comparison.textContent = first.start === best.start ? 'The earliest available start is already the cheapest.' :
-          'Save '+euros.format(saving)+' in wholesale energy compared with starting at '+fullClock.format(first.start*1000)+'.';
+          saving < 0.005 ? 'Less than €0.01 cheaper than starting at ' + earliest + '.' :
+          'Save ' + euros.format(saving) + ' in wholesale energy compared with starting at ' + earliest + '.';
         comparison.hidden = false;
       }
     } else if (valid) {
@@ -278,11 +283,9 @@ function render(){
   el('rows').replaceChildren(...rows.map(r=>{const tr=document.createElement('tr');for(const v of [fullClock.format(r.start*1000),(r.price/10).toFixed(2)]){tr.insertCell().textContent=v;}return tr;}));
   updateChart({rows,choices,minutes:mins,power:kw,now:demoStart,date,deadline:Number(el('deadline').value)||Infinity});
 }
-async function load(){
+function load(){
   try {
-    const response = new Response(document.getElementById('sample-prices').textContent);
-    if (!response.ok) throw new Error('Demo price file unavailable');
-    data = await response.json();
+    data = JSON.parse(el('sample-prices').textContent);
     const dates = [...new Set(data.intervals.map(row => day(row.start)))];
     el('date').replaceChildren(...dates.map(date => new Option(date, date)));
     el('date').value = defaultDeliveryDay(data.intervals, Number(el('duration').value), demoStart, day);
@@ -290,7 +293,7 @@ async function load(){
     el('status').textContent = 'Demo using historical market prices from 23 November 2026 · Europe/Berlin';
     render();
   } catch {
-    el('status').textContent = 'The demo price file could not be loaded.';
+    el('status').textContent = 'The demo prices could not be loaded.';
     el('best').textContent = 'Prices unavailable';
   }
 }
