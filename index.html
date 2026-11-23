@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#102927"><title>Power Window · Electricity planner</title><style>
+:root{font:16px/1.5 Inter,system-ui,sans-serif;color:#102927;background:#eff4f1}*{box-sizing:border-box}body{margin:0}header,main,footer{max-width:1120px;margin:auto;padding:0 32px}header{display:flex;align-items:center;justify-content:space-between;min-height:82px;border-bottom:1px solid #becdc6}header>span,.hint,footer,#status,.axis{color:#49625a}.brand{font-weight:750;font-size:1.2rem;display:flex;align-items:center;gap:10px}.mark{background:#c6f476;color:#16342b;padding:0 10px;border-radius:7px;font-size:1.5rem}.intro{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;padding:45px 0 24px}.eyebrow{font:700 .79rem/1.3 ui-monospace,monospace;letter-spacing:.1em}.intro h1{font-size:clamp(2.5rem,6vw,4.6rem);letter-spacing:-.065em;line-height:1.05;margin:11px 0}.intro p:last-child{max-width:570px}.layout{display:grid;grid-template-columns:1fr 1.65fr;gap:18px}.controls,.chart,.result{border-radius:18px;padding:26px;background:white;border:1px solid #cbd7d0}h2{letter-spacing:-.035em;margin:0 0 14px;font-size:1.4rem}.controls label{display:block;margin:12px 0 4px;font-weight:600;font-size:.9rem}button,input,select{font:inherit;color:inherit;border-radius:7px;border:1px solid #9aafa2;background:#fff;padding:8px 12px}button{cursor:pointer;white-space:nowrap}button:disabled{opacity:.65}input,select{width:100%}.hint,footer,#status{font-size:.87rem}.result{background:#102e2c;color:#f5f8ed;display:flex;flex-direction:column;justify-content:center;padding:clamp(24px,4vw,52px)}.result .eyebrow{color:#c6f476}.result h2{font-size:clamp(2rem,5vw,4rem);line-height:1.1;letter-spacing:-.06em}.result #metrics{display:flex;gap:32px;flex-wrap:wrap;margin-top:24px}.metric{min-width:0;overflow-wrap:anywhere}.metric b{display:block;font-size:1.5rem;color:#c6f476}.chart{margin:18px 0}.chart-title,.axis{display:flex;justify-content:space-between}.axis{font-size:.8rem}canvas{display:block;width:100%;height:150px}summary{cursor:pointer;font-weight:600}table{border-collapse:collapse;width:100%;margin-top:16px}th,td{padding:5px;text-align:left;border-bottom:1px solid #dce3de}footer{padding-top:10px;padding-bottom:30px}a{color:inherit}@media(max-width:680px){header,main,footer{padding-left:16px;padding-right:16px}header>span{font-size:.8rem}.layout{grid-template-columns:1fr}.intro{display:block;padding:22px 0}.controls,.chart,.result{padding:18px}.result{min-height:210px}.intro h1{font-size:2.8rem}}
+
+#comparison{border-top:1px solid #47635d;padding-top:14px;margin-bottom:0}#power-help{margin-top:5px}#power[aria-invalid=true]{border-color:#a63d25}#power[aria-invalid=true]+#power-help{color:#933521}
+
+.chart{--teal:#08796e;--ink:#11392f;--grid:#cad8d1;padding:clamp(18px,3vw,36px);overflow:hidden}
+.chart-title{align-items:center;gap:1rem;flex-wrap:wrap}
+.chart-title .eyebrow{color:#50776a;margin:0 0 .4rem}
+.chart-title h2{font-size:clamp(1.5rem,3.1vw,2.35rem);line-height:1.13;letter-spacing:-.05em;margin:0}
+.chart-key{font-size:.83rem;display:inline-flex;align-items:center;gap:.45rem;color:#28594d}
+.chart-key:before{content:'';width:.65rem;height:.65rem;border-radius:3px;background:var(--teal)}
+.chart-instruction{color:#50685d;margin:.7rem 0 1.4rem;font-size:.9rem}
+.chart-surface{position:relative;background:linear-gradient(145deg,#f6f9f4,#eaf3ee);border:1px solid #d4e1d7;border-radius:14px;padding:16px 16px 12px}
+.unit,#price-axis,#time-axis,#price-tip strong,#pinned small{font:500 .76rem/1.3 ui-monospace,monospace;font-variant-numeric:tabular-nums;color:#52695e}
+.unit{margin:0 0 15px}
+.plot-layout{display:grid;grid-template-columns:35px minmax(0,1fr)}
+#price-axis,#plot{height:190px;position:relative}
+#price-axis span{position:absolute;right:8px;transform:translateY(-50%)}
+#plot-scroll{overflow-x:auto;scrollbar-width:thin;scrollbar-color:#9bbbae transparent}
+#plot-inner{min-width:550px;padding-top:5px}
+#price-axis{margin-top:5px}
+#plot{isolation:isolate}
+.grid-line,.run-band{position:absolute;pointer-events:none}
+.grid-line{left:0;right:0;border-top:1px dashed var(--grid)}
+.grid-line.zero{border-top:1px solid #78968a}
+.run-band{top:0;bottom:0;background:#00948012;border-top:2px solid var(--teal);border-inline:1px solid #08796e3b}
+.price-slot{position:absolute;top:0;bottom:0;background:transparent;border:0;border-radius:0;padding:0;touch-action:pan-x pan-y}
+.price-slot>i{position:absolute;left:8%;width:84%;min-height:2px;background:#8aa99b;border-radius:3px 3px 1px 1px;pointer-events:none}
+.price-slot.recommended>i{background:var(--teal)}
+.price-slot.inspected,.price-slot:focus-visible{background:#173c3020;outline:1px dashed #365c4e;outline-offset:-1px;z-index:1}
+.price-slot[aria-pressed=true]{box-shadow:inset 0 -4px #102e2c;background:#143b301a}
+.price-slot.inspected>i,.price-slot[aria-pressed=true]>i{background:#174c43}
+#time-axis{height:27px;position:relative;padding-top:8px}
+#time-axis span{position:absolute;transform:translateX(-50%)}
+#time-axis span:first-child{transform:none}#time-axis span:last-child{transform:translateX(-100%)}
+#price-tip{position:absolute;z-index:4;top:2px;pointer-events:none;display:grid;gap:4px;width:max-content;max-width:calc(100% - 8px);padding:11px 14px;border-radius:10px;background:#102e2c;color:#c4ebd8;box-shadow:0 4px 18px #102e2c29;font-size:.78rem}
+#price-tip strong{color:#e3eee9}#price-tip b{font-size:1.07rem;color:white}#price-tip[hidden],#pinned[hidden]{display:none}
+#pinned{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;margin:12px 0;border:1px solid #a8c7ba;border-left:4px solid var(--teal);border-radius:10px;background:#f3f8f5}
+#pinned div{display:grid;gap:3px;min-width:0;overflow-wrap:anywhere}#pinned small{letter-spacing:.09em;color:#417463}#pin-result{font-size:.91rem}
+@media(max-width:680px){.chart-surface{padding-inline:8px}.plot-layout{grid-template-columns:29px minmax(0,1fr)}#plot-inner{min-width:1152px}#plot,#price-axis{height:160px}.chart-title{gap:.65rem}}
+
+</style></head>
+<body><header><div class="brand"><span class="mark" aria-hidden="true">ϟ</span> Power Window</div><span>Germany / Luxembourg</span></header>
+<main><div class="intro"><div><p class="eyebrow">DAY-AHEAD ELECTRICITY · DEMO</p><h1>Plan your next run.</h1><p>Find the lowest-priced stretch of time to charge a car or run an appliance.</p></div></div>
+<div class="layout"><section class="controls"><h2>Plan a window</h2><label for="date">Delivery day</label><select id="date"></select><label for="duration">Run time</label><select id="duration"><option value="30">30 minutes</option><option selected value="60">1 hour</option><option value="90">1 hour 30 minutes</option><option value="120">2 hours</option><option value="180">3 hours</option><option value="240">4 hours</option></select><label for="deadline">Finish by</label><select id="deadline"><option value="">End of delivery day</option></select><label for="power">Average power (kW)</label><input id="power" type="text" inputmode="decimal" aria-describedby="power-help" value="2"><div id="power-help" class="hint">Up to 2 decimal places. Use 1.25 or 1,25.</div><p class="hint">Uses constant power over the chosen window. Prices cover wholesale energy only. Your tariff, taxes and fees determine your bill.</p></section>
+<section class="result" aria-live="polite"><p class="eyebrow">LOWEST AVAILABLE WINDOW</p><h2 id="best">Loading prices…</h2><div id="detail"></div><div id="metrics"></div><p id="comparison" hidden></p></section></div>
+<section class="chart" aria-labelledby="chart-heading">
+<div class="chart-title"><div><p class="eyebrow">DE–LU · WHOLESALE</p><h2 id="chart-heading">Market price by quarter hour</h2></div><span class="chart-key">Recommended run</span></div>
+<p class="chart-instruction">Hover to inspect a price. Click or tap a bar to compare starting there.</p>
+<div class="chart-surface"><div class="unit">ct/kWh</div><div class="plot-layout"><div id="price-axis" aria-hidden="true"></div><div id="plot-scroll"><div id="plot-inner"><div id="plot" role="group" aria-label="Quarter-hour prices"></div><div id="time-axis" aria-hidden="true"></div></div></div></div>
+<div id="price-tip" hidden></div></div>
+<div id="pinned" hidden><div><small>PINNED START</small><strong id="pin-time"></strong><span id="pin-result" aria-live="polite"></span></div><button id="clear-pin" type="button">Clear</button></div>
+<p id="status" role="status"></p><details><summary>View interval prices</summary><table><thead><tr><th>Berlin time</th><th>ct / kWh</th></tr></thead><tbody id="rows"></tbody></table></details></section>
+</main><footer>Market data from <a href="https://www.smard.de/">Bundesnetzagentur | SMARD.de</a> via <a href="https://energy-charts.info/">Energy-Charts</a> · <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. Window averages and cost estimates calculated here.</footer><script type="application/json" id="sample-prices">{"intervals":[{"start":1795388400,"price":195},{"start":1795389300,"price":187.13},{"start":1795390200,"price":184.9},{"start":1795391100,"price":181.84},{"start":1795392000,"price":186.11},{"start":1795392900,"price":182.89},{"start":1795393800,"price":182.06},{"start":1795394700,"price":181.84},{"start":1795395600,"price":183.28},{"start":1795396500,"price":182.25},{"start":1795397400,"price":182.06},{"start":1795398300,"price":182.06},{"start":1795399200,"price":182.06},{"start":1795400100,"price":181.75},{"start":1795401000,"price":181.98},{"start":1795401900,"price":180.96},{"start":1795402800,"price":182.06},{"start":1795403700,"price":182.52},{"start":1795404600,"price":182.06},{"start":1795405500,"price":182.87},{"start":1795406400,"price":181.39},{"start":1795407300,"price":182.34},{"start":1795408200,"price":187.5},{"start":1795409100,"price":202.27},{"start":1795410000,"price":198.07},{"start":1795410900,"price":209.08},{"start":1795411800,"price":221.82},{"start":1795412700,"price":241.86},{"start":1795413600,"price":250.03},{"start":1795414500,"price":263.7},{"start":1795415400,"price":271.95},{"start":1795416300,"price":277.66},{"start":1795417200,"price":284.98},{"start":1795418100,"price":285.47},{"start":1795419000,"price":280.2},{"start":1795419900,"price":273.35},{"start":1795420800,"price":280},{"start":1795421700,"price":271.61},{"start":1795422600,"price":269.29},{"start":1795423500,"price":258.92},{"start":1795424400,"price":270.17},{"start":1795425300,"price":252.84},{"start":1795426200,"price":236.25},{"start":1795427100,"price":221.48},{"start":1795428000,"price":221},{"start":1795428900,"price":217.23},{"start":1795429800,"price":214.2},{"start":1795430700,"price":214.62},{"start":1795431600,"price":210.31},{"start":1795432500,"price":208.83},{"start":1795433400,"price":208.1},{"start":1795434300,"price":207.88},{"start":1795435200,"price":209.11},{"start":1795436100,"price":213.22},{"start":1795437000,"price":210.31},{"start":1795437900,"price":216.58},{"start":1795438800,"price":219.32},{"start":1795439700,"price":229.18},{"start":1795440600,"price":253.08},{"start":1795441500,"price":270.8},{"start":1795442400,"price":261.13},{"start":1795443300,"price":272.62},{"start":1795444200,"price":280.34},{"start":1795445100,"price":289.92},{"start":1795446000,"price":289.4},{"start":1795446900,"price":301.07},{"start":1795447800,"price":312.67},{"start":1795448700,"price":314.09},{"start":1795449600,"price":303.17},{"start":1795450500,"price":313.93},{"start":1795451400,"price":315.36},{"start":1795452300,"price":331.13},{"start":1795453200,"price":321.42},{"start":1795454100,"price":318.68},{"start":1795455000,"price":316.32},{"start":1795455900,"price":310.66},{"start":1795456800,"price":314.88},{"start":1795457700,"price":303.05},{"start":1795458600,"price":297.36},{"start":1795459500,"price":294.15},{"start":1795460400,"price":297.04},{"start":1795461300,"price":288},{"start":1795462200,"price":278.97},{"start":1795463100,"price":264.41},{"start":1795464000,"price":273.84},{"start":1795464900,"price":263.43},{"start":1795465800,"price":249.8},{"start":1795466700,"price":232},{"start":1795467600,"price":244.59},{"start":1795468500,"price":240.05},{"start":1795469400,"price":238.43},{"start":1795470300,"price":230.08},{"start":1795471200,"price":224.92},{"start":1795472100,"price":212.66},{"start":1795473000,"price":210.1},{"start":1795473900,"price":206.73}]}
+</script><script type="module">
+function windowsFor(rows, minutes, now, date, dayOf, deadline = Infinity) {
+  if (![30,60,90,120,180,240].includes(minutes)) return [];
+  const count=minutes/15, windows=[];
+  for(let i=0;i+count<=rows.length;i++){
+    const slice=rows.slice(i,i+count), first=slice[0].start;
+    if(first+minutes*60>deadline || first<now || dayOf(first)!==date || slice.some((r,j)=>r.start!==first+j*900 || dayOf(r.start)!==date)) continue;
+    windows.push({start:first,end:first+minutes*60,average:slice.reduce((s,r)=>s+r.price,0)/count});
+  }
+  return windows.sort((a,b)=>a.average-b.average || a.start-b.start);
+}
+
+function parsePower(value) {
+  if (typeof value !== 'string') return null;
+  const decimal = value.trim();
+  if (!/^(?:\d+(?:[.,]\d{0,2})?|[.,]\d{1,2})$/.test(decimal)) return null;
+  const power = Number(decimal.replace(',', '.'));
+  return Number.isFinite(power) && power > 0 ? power : null;
+}
+
+function defaultDeliveryDay(rows, minutes, now, dayOf) {
+  const days = [...new Set(rows.map(row => dayOf(row.start)))];
+  return days.find(date => windowsFor(rows, minutes, now, date, dayOf).length) ?? days[0] ?? '';
+}
+
+const createChart = (() => {
+const el = id => document.getElementById(id);
+const quarter = 900;
+
+function createChart({clock, fullClock, euros}) {
+  const plot = el('plot'), scroll = el('plot-scroll'), tip = el('price-tip');
+  const time = epoch => fullClock.format(epoch * 1000);
+  const safeMoney = value => Number.isFinite(value) ? euros.format(value) : 'Cost exceeds display range';
+  let state, pinned, active;
+  let buttons = new Map();
+
+  function inspect(start) {
+    active = start;
+    const button = buttons.get(start);
+    for (const [epoch, item] of buttons) item.classList.toggle('inspected', epoch === start);
+    tip.hidden = !button;
+    if (!button) return;
+    const row = state.rows.find(item => item.start === start);
+    const recommended = button.classList.contains('recommended');
+    const title = document.createElement('strong');
+    title.textContent = time(start) + ' – ' + time(start + quarter);
+    const price = document.createElement('b');
+    price.textContent = (row.price / 10).toFixed(2) + ' ct/kWh';
+    const detail = document.createElement('span');
+    detail.textContent = state.power === null ? 'Enter a valid kW load for cost' :
+      safeMoney(row.price / 1000 * 0.25 * state.power) + ' for 15 min at ' + state.power + ' kW';
+    tip.replaceChildren(title, price, detail);
+    if (recommended) tip.append('Recommended run');
+    const surface = tip.parentElement.getBoundingClientRect();
+    const target = button.getBoundingClientRect();
+    const viewport = scroll.getBoundingClientRect();
+    const center = target.left + target.width / 2;
+    if (center < viewport.left || center > viewport.right) { tip.hidden = true; return; }
+    tip.style.left = Math.max(4, Math.min(center - surface.left - tip.offsetWidth/2, surface.width-tip.offsetWidth-4)) + 'px';
+  }
+
+  function compare(start) {
+    pinned = buttons.has(start) ? start : null;
+    for (const [epoch, item] of buttons) item.setAttribute('aria-pressed', String(epoch === pinned));
+    el('pinned').hidden = pinned === null;
+    if (pinned === null) return;
+    const {minutes, choices, power, deadline} = state;
+    const end = start + minutes * 60;
+    el('pin-time').textContent = time(start) + ' – ' + time(end) + ' · ' + minutes + ' min';
+    const choice = choices.find(item => item.start === start);
+    let result;
+    if (!choice) {
+      if (start < state.now) result = 'This start time has passed.';
+      else if (end > deadline) result = 'This run would finish after your deadline.';
+      else result = 'A full run needs consecutive published prices within the selected day.';
+    } else if (power === null) result = 'Enter a valid average power to compare costs.';
+    else {
+      const scale = minutes / 60 / 1000 * power;
+      const difference = (choice.average - choices[0].average) * scale;
+      result = safeMoney(choice.average * scale) + ' wholesale · ' +
+        (choice.average === choices[0].average ? 'Lowest-cost run' : safeMoney(difference) + ' more than the recommended run');
+    }
+    el('pin-result').textContent = result;
+  }
+
+  plot.addEventListener('pointerover', event => {
+    const button = event.target.closest('button');
+    inspect(button ? Number(button.dataset.start) : null);
+  });
+  plot.addEventListener('pointerleave', () => inspect(null));
+  plot.addEventListener('focusin', event => inspect(Number(event.target.dataset.start)));
+  plot.addEventListener('focusout', () => inspect(null));
+  plot.addEventListener('click', event => {
+    const button = event.target.closest('button');
+    if (button) { const start = Number(button.dataset.start); compare(start); inspect(start); }
+  });
+  plot.addEventListener('keydown', event => {
+    if (event.key === 'Escape') { compare(null); inspect(null); return; }
+    if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+    event.preventDefault();
+    const items = [...buttons.values()];
+    let next = items.indexOf(event.target) + (event.key === 'ArrowLeft' ? -1 : 1);
+    if (event.key === 'Home') next = 0;
+    if (event.key === 'End') next = items.length - 1;
+    const button = items[Math.max(0, Math.min(next, items.length-1))];
+    event.target.tabIndex = -1;
+    button.tabIndex = 0;
+    button.focus();
+  });
+  el('clear-pin').onclick = () => {
+    const button = buttons.get(pinned);
+    compare(null);
+    button?.focus();
+  };
+  scroll.addEventListener('scroll', () => { if (active != null) inspect(active); });
+  window.addEventListener('resize', () => { if (active != null) inspect(active); });
+
+  return function update(next) {
+    const focused = plot.contains(document.activeElement) ? Number(document.activeElement.dataset.start) : null;
+    const tabStart = plot.querySelector('[tabindex="0"]')?.dataset.start;
+    const previousActive = active;
+    state = next;
+    const {rows, choices} = state;
+    buttons = new Map();
+    plot.replaceChildren(); el('price-axis').replaceChildren(); el('time-axis').replaceChildren();
+    if (!rows.length) { compare(null); inspect(null); return; }
+    const from = rows[0].start, slots = (rows.at(-1).start - from)/quarter + 1;
+    const high = Math.max(0,...rows.map(r=>r.price)) / 10;
+    const low = Math.min(0,...rows.map(r=>r.price)) / 10;
+    const rough = (high-low || 1) / 4;
+    const unit = 10 ** Math.floor(Math.log10(rough));
+    const step = ([1,2,2.5,5,10].find(n => n*unit >= rough) ?? 10)*unit;
+    const top = Math.ceil(high/step)*step || (low===0 ? step : 0);
+    const bottom = Math.floor(low/step)*step;
+    const y = v => 100 * (top-v)/(top-bottom);
+    for(let i=0; i<=Math.round((top-bottom)/step); i++){
+      const value = top-i*step;
+      const line = document.createElement('i'), label = document.createElement('span');
+      line.className = Math.abs(value) < step/1000 ? 'grid-line zero' : 'grid-line';
+      line.style.top = label.style.top = y(value)+'%';
+      label.textContent = Number(value.toPrecision(6)).toString();
+      plot.append(line); el('price-axis').append(label);
+    }
+    const x = epoch => 100 * (epoch-from)/(slots*quarter);
+    const best = choices[0];
+    if(best){
+      const band = document.createElement('i');
+      band.className = 'run-band';
+      band.style.left = x(best.start)+'%';
+      band.style.width = 100*(best.end-best.start)/(slots*quarter)+'%';
+      plot.append(band);
+    }
+    for (const row of rows) {
+      const button = document.createElement('button'), bar = document.createElement('i');
+      button.type = 'button'; button.className = 'price-slot';
+      const recommended = best && row.start >= best.start && row.start < best.end;
+      if(recommended) button.classList.add('recommended');
+      button.dataset.start = row.start; button.tabIndex = -1;
+      button.setAttribute('aria-label',time(row.start)+', '+(row.price/10).toFixed(2)+' cents per kWh'+(recommended?', recommended run':''));
+      button.style.left = x(row.start)+'%'; button.style.width = 100/slots+'%';
+      bar.style.top = Math.min(y(0),y(row.price/10))+'%';
+      bar.style.height = Math.abs(y(0)-y(row.price/10))+'%';
+      button.append(bar); plot.append(button); buttons.set(row.start,button);
+    }
+    (buttons.get(Number(tabStart)) ?? buttons.get(best?.start) ?? buttons.get(from)).tabIndex = 0;
+    for(let i=0;i<=4;i++){
+      const offset=Math.round(i*slots/4);
+      const label=document.createElement('span');
+      label.style.left=100*offset/slots+'%';
+      label.textContent=clock.format((from+offset*quarter)*1000);
+      el('time-axis').append(label);
+    }
+    compare(pinned);
+    if(focused!==null) buttons.get(focused)?.focus({preventScroll:true});
+    inspect(previousActive);
+  };
+}
+
+return createChart;
+})();
+const demoStart = 1795388400;
+const el=id=>document.getElementById(id);
+const format=(options)=>new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Berlin',...options});
+const clock=format({hour:'2-digit',minute:'2-digit'}), fullClock=format({hour:'2-digit',minute:'2-digit',timeZoneName:'shortOffset'});
+const delivery=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit'});
+const euros=new Intl.NumberFormat('en-IE',{style:'currency',currency:'EUR',maximumFractionDigits:2});
+const day=t=>{
+  const parts=Object.fromEntries(delivery.formatToParts(t*1000).map(part=>[part.type,part.value]));
+  return [parts.year,parts.month,parts.day].join('-');
+};
+let data, rows=[],best;
+const updateChart=createChart({clock,fullClock,euros});
+function render(){
+  const valid = parsePower(el('power').value) !== null;
+  el('power').setAttribute('aria-invalid', String(!valid));
+  el('power-help').textContent = valid ? 'Up to 2 decimal places. Use 1.25 or 1,25.' : 'Enter a positive number with up to 2 decimal places and no thousands separators.';
+  if(!data)return;
+  const date=el('date').value, mins=Number(el('duration').value),kw=parsePower(el('power').value);
+  rows=data.intervals.filter(r=>day(r.start)===date);
+  const choices=windowsFor(rows,mins,demoStart,date,day,Number(el('deadline').value) || Infinity);
+  el('comparison').hidden=true;
+  best=choices[0];el('metrics').replaceChildren();el('detail').textContent='';
+  el('best').textContent=best?clock.format(best.start*1000)+' – '+clock.format(best.end*1000):'No available window';
+  if(best){
+    el('detail').textContent=fullClock.format(best.start*1000)+' to '+fullClock.format(best.end*1000)+' · '+date;
+    const metrics=[[(best.average/10).toFixed(2)+' ct/kWh','Average market price']];
+    const cost = kw * ((best.average / 1000) * (mins / 60));
+    if (valid && Number.isFinite(cost)) {
+      metrics.push([euros.format(cost), 'Wholesale energy cost']);
+      const first = choices.reduce((a,b)=>a.start<b.start?a:b);
+      const saving = (first.average-best.average)/1000*(mins/60)*kw;
+      const comparison = el('comparison');
+      if (Number.isFinite(saving)) {
+        comparison.textContent = first.start === best.start ? 'The earliest available start is already the cheapest.' :
+          'Save '+euros.format(saving)+' in wholesale energy compared with starting at '+fullClock.format(first.start*1000)+'.';
+        comparison.hidden = false;
+      }
+    } else if (valid) {
+      el('detail').textContent += ' · The cost is too large to display.';
+    }
+    for(const [value,label] of metrics){const metric=document.createElement('div'),b=document.createElement('b');metric.className='metric';b.textContent=value;metric.append(b,label);el('metrics').append(metric);}
+  }else el('detail').textContent='Try a later finish time, a shorter run or another published day.';
+  el('rows').replaceChildren(...rows.map(r=>{const tr=document.createElement('tr');for(const v of [fullClock.format(r.start*1000),(r.price/10).toFixed(2)]){tr.insertCell().textContent=v;}return tr;}));
+  updateChart({rows,choices,minutes:mins,power:kw,now:demoStart,date,deadline:Number(el('deadline').value)||Infinity});
+}
+async function load(){
+  try {
+    const response = new Response(document.getElementById('sample-prices').textContent);
+    if (!response.ok) throw new Error('Demo price file unavailable');
+    data = await response.json();
+    const dates = [...new Set(data.intervals.map(row => day(row.start)))];
+    el('date').replaceChildren(...dates.map(date => new Option(date, date)));
+    el('date').value = defaultDeliveryDay(data.intervals, Number(el('duration').value), demoStart, day);
+    updateDeadlines();
+    el('status').textContent = 'Demo using historical market prices from 23 November 2026 · Europe/Berlin';
+    render();
+  } catch {
+    el('status').textContent = 'The demo price file could not be loaded.';
+    el('best').textContent = 'Prices unavailable';
+  }
+}
+
+function updateDeadlines() {
+  const select = el('deadline');
+  const previous = select.value;
+  const previousLabel = select.selectedOptions[0]?.textContent;
+  const date = el('date').value;
+  const ends = data.intervals.filter(r=>day(r.start)===date && r.start+900>demoStart)
+    .map(r=>r.start+900);
+  const options = ends.map(end=>new Option(fullClock.format(end*1000), String(end)));
+  if (previous && !ends.includes(Number(previous))) options.push(new Option(previousLabel, previous));
+  select.replaceChildren(new Option('End of delivery day',''), ...options);
+  select.value = previous;
+}
+
+const settingsKey = 'power-window.run-settings';
+try {
+  const saved = JSON.parse(localStorage.getItem(settingsKey));
+  if (parsePower(saved?.power) !== null) el('power').value = saved.power;
+  if ([...el('duration').options].some(o=>o.value===saved?.duration)) el('duration').value=saved.duration;
+} catch { /* Storage can be unavailable in private browsing. */ }
+for (const id of ['power','duration']) el(id).addEventListener('input',()=>{
+  if (parsePower(el('power').value) !== null) {
+    try {
+      localStorage.setItem(settingsKey,JSON.stringify({power:el('power').value,duration:el('duration').value}));
+    } catch { /* The planner also works without storage. */ }
+  }
+  render();
+});
+el('date').addEventListener('change',()=>{
+  el('deadline').value='';
+  updateDeadlines();
+  render();
+});
+el('deadline').addEventListener('change',render);
+load();
+
+</script></body></html>
